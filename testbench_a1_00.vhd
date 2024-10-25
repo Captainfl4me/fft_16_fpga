@@ -23,7 +23,7 @@
 architecture schematic of testbench is
 
 
-signal      clk1,clk2	: std_logic ; -- horloge du systeme
+signal      clk1,clk2	: std_logic := '0'; -- horloge du systeme
 signal      raz	: std_logic ;
 signal      enable,enable2	: std_logic ; -- signal a mesurer
 signal      c2		: std_logic_vector(3 downto 0) ;
@@ -36,8 +36,10 @@ signal      scan_enab  :  std_logic :='0' ;
 
 COMPONENT fft16 IS
     GENERIC( nbit : integer :=12 );
-    PORT( x : in tab16 ;
-		  z : out tab9);
+    PORT(clk : in std_logic;
+			rst : in std_logic;
+			x : in tab16 ;
+		   z : out tab9);
 END COMPONENT fft16;
 
 signal x : tab16;
@@ -46,7 +48,10 @@ signal z : tab9;
 begin
 
   -- instantiation du systeme a tester  
-  UUT : fft16  port map(x,z);     
+  UUT : fft16  port map(clk2, raz, x,z);    
+
+  raz <= '1';
+  clk2 <= not clk2 after 100 ns; 
 
   gene : process 
   begin

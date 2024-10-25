@@ -7,7 +7,9 @@ use work.types.all;
 
 entity fft16 is
    generic (nbit : integer :=12);
-   port (x : in tab16;
+   port (clk : in std_logic;
+			rst : in std_logic;
+			x : in tab16;
 			z : out tab9);
 end entity;
 
@@ -33,25 +35,35 @@ architecture a1 of fft16 is
 	type t_radix_arr is array(0 to 3) of std_logic;
 	constant d20_last_stage: t_radix_arr := ('1', '0', '0', '0');
 	
-	
-	signal x_div, ar, ai, br, bi, br_shifted, bi_shifted, yr, yi : tab16;
+	signal z_temp : tab9;
+	signal x_div, x_reg, ar, ai, br, bi, br_shifted, bi_shifted, yr, yi : tab16;
 begin
 	-- Divide entry for Radix-4 first stage
 	g_x_div: for i in 0 to 15 generate
 		x_div(i) <= resize(shift_right(x(i), 2), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
 	end generate g_x_div;
 	
+	-- Input register stage
+	process (clk, rst) is 
+	begin
+		if rst = '0' then
+			x_reg <= (others => sfixed_zero);
+		elsif rising_edge(clk) then
+			x_reg <= x_div;
+		end if;
+	end process;
+	
 	-- Radix-4 first stage
 	g_radix4_1: for i in 0 to 3 generate
 		u_radix4_1: radix4
 			port map(
-				x0r => x_div(i),
+				x0r => x_reg(i),
 				x0i => sfixed_zero,
-				x1r => x_div(i+4),
+				x1r => x_reg(i+4),
 				x1i => sfixed_zero,
-				x2r => x_div(i+8),
+				x2r => x_reg(i+8),
 				x2i => sfixed_zero,
-				x3r => x_div(i+12),
+				x3r => x_reg(i+12),
 				x3i => sfixed_zero,
 				y0r => ar(i),
 				y0i => ai(i),
@@ -112,6 +124,16 @@ begin
 	end generate g_radix4_2;
 	
 	g_norm: for i in 0 to 8 generate
-		z(i) <= shift_left(resize(yr(i)*yr(i) + yi(i)*yi(i), vecteurin'left, vecteurin'right, fixed_saturate, fixed_truncate), 2); -- TODO sqrt 
+		z_temp(i) <= shift_left(resize(yr(i)*yr(i) + yi(i)*yi(i), vecteurin'left, vecteurin'right, fixed_saturate, fixed_truncate), 2); -- TODO sqrt 
 	end generate g_norm;
+	
+	-- Output register stage
+	process (clk, rst) is 
+	begin
+		if rst = '0' then
+			z <= (others => sfixed_zero);
+		elsif rising_edge(clk) then
+			z <= z_temp;
+		end if;
+	end process;
 end a1;
