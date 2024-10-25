@@ -6,7 +6,7 @@ The goal of this project is to implement a 16 points FFT on FPGA.
 
 First, the computing model was implemented on MATLAB script to try computing logic. The fft-16 is composed of Radix-4 blocs as follows:
 
-![scheme](./matlab_test/fft_16.drawio.png)
+![scheme](./fft_16.drawio.png)
 
 This is the output on a 5Hz cosinus sample at $f_e=20Hz$:
 
