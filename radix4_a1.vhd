@@ -7,6 +7,7 @@ use work.types.all ;
 
 ENTITY radix4 IS
     PORT(
+		clk 											: in std_logic;
       x0r,x0i,x1r,x1i,x2r,x2i,x3r,x3i     : IN sfixed(vecteurin'range) ;	-- entres
 		y0r,y0i,y1r,y1i,y2r,y2i,y3r,y3i	   : OUT sfixed(vecteurin'range) ;	-- sortie du radix
 		d20,d21 									   : IN std_logic
@@ -24,7 +25,8 @@ architecture a1 of radix4 is
 		 );
 	END COMPONENT;
 
-	signal b0r,b0i,b1r,b1i,b2r,b2i,b3r,b3i : vecteurin;
+	signal b0r, b0i, b1r, b1i, b2r, b2i, b3r, b3i : vecteurin;
+	signal b0r_latched, b0i_latched, b1r_latched, b1i_latched, b2r_latched, b2i_latched, b3r_latched, b3i_latched : vecteurin;
 begin
 	URAD2_1r: radix2
 		port map(
@@ -60,19 +62,33 @@ begin
 			ym => b3i
 		);
 		
+	process (clk) is
+	begin
+		if rising_edge(clk) then
+			b0r_latched <= b0r;
+			b0i_latched <= b0i;
+			b1r_latched <= b1r;
+			b1i_latched <= b1i;
+			b2r_latched <= b2r;
+			b2i_latched <= b2i;
+			b3r_latched <= b3r;
+			b3i_latched <= b3i;
+		end if;
+	end process;
+		
 	URAD2_3r: radix2
 		port map(
 			d2 => d20,
-			x0 => b0r,
-			x1 => b2r,
+			x0 => b0r_latched,
+			x1 => b2r_latched,
 			yp => y0r,
 			ym => y2r
 		);
 	URAD2_3i: radix2
 		port map(
 			d2 => d20,
-			x0 => b0i,
-			x1 => b2i,
+			x0 => b0i_latched,
+			x1 => b2i_latched,
 			yp => y0i,
 			ym => y2i
 		);
@@ -80,16 +96,16 @@ begin
 	URAD2_4r: radix2
 		port map(
 			d2 => d21,
-			x0 => b1r,
-			x1 => b3i,
+			x0 => b1r_latched,
+			x1 => b3i_latched,
 			yp => y1r,
 			ym => y3r
 		);
 	URAD2_4i: radix2
 		port map(
 			d2 => d21,
-			x0 => b1i,
-			x1 => b3r,
+			x0 => b1i_latched,
+			x1 => b3r_latched,
 			yp => y3i,
 			ym => y1i
 		);

@@ -9,6 +9,7 @@ entity fft16 is
    generic (nbit : integer :=12);
    port (clk : in std_logic;
 			rst : in std_logic;
+			load_data: in std_logic;
 			x : in tab16;
 			z : out tab9);
 end entity;
@@ -16,6 +17,7 @@ end entity;
 architecture a1 of fft16 is
 	component radix4 IS
 		PORT(
+			clk 										: in std_logic;
 			x0r,x0i,x1r,x1i,x2r,x2i,x3r,x3i  : IN vecteurin;	-- entres
 			y0r,y0i,y1r,y1i,y2r,y2i,y3r,y3i	: OUT vecteurin;	-- sortie du radix
 			d20,d21 									: IN std_logic
@@ -25,7 +27,8 @@ architecture a1 of fft16 is
 	component neda_weight is
 		generic (i : integer;
 		         n : integer);
-		port (x0r : in vecteurin;
+		port (clk : in std_logic;
+				x0r : in vecteurin;
 				x0i : in vecteurin;
 				y0r : out vecteurin;
 				y0i : out vecteurin);
@@ -35,8 +38,8 @@ architecture a1 of fft16 is
 	type t_radix_arr is array(0 to 3) of std_logic;
 	constant d20_last_stage: t_radix_arr := ('1', '0', '0', '0');
 	
-	signal z_temp : tab9;
-	signal x_div, x_reg, ar, ai, br, bi, br_shifted, bi_shifted, yr, yi : tab16;
+	signal z_temp, yr_sqr, yi_sqr : tab9;
+	signal x_div, x_reg, ar, ai, ar_sync, ai_sync, br, bi, br_shifted, bi_shifted, yr, yi, yr_sync, yi_sync : tab16;
 begin
 	-- Divide entry for Radix-4 first stage
 	g_x_div: for i in 0 to 15 generate
@@ -48,7 +51,7 @@ begin
 	begin
 		if rst = '0' then
 			x_reg <= (others => sfixed_zero);
-		elsif rising_edge(clk) then
+		elsif rising_edge(clk) and load_data = '1' then
 			x_reg <= x_div;
 		end if;
 	end process;
@@ -57,6 +60,7 @@ begin
 	g_radix4_1: for i in 0 to 3 generate
 		u_radix4_1: radix4
 			port map(
+				clk => clk,
 				x0r => x_reg(i),
 				x0i => sfixed_zero,
 				x1r => x_reg(i+4),
@@ -73,9 +77,18 @@ begin
 				y2i => ai(i+8),
 				y3r => ar(i+12),
 				y3i => ai(i+12),
-				d20 => '1',
-				d21 => '1');
+				d20 => '0',
+				d21 => '0');
 	end generate g_radix4_1;
+	
+	-- D-latch block
+	process (clk, rst) is 
+	begin
+		if rising_edge(clk) then
+			ar_sync <= ar;
+			ai_sync <= ai;
+		end if;
+	end process;
 	
 	-- Generate all 16 NEDA block
 	g_NEDA_block1: for i in 0 to 3 generate
@@ -86,23 +99,30 @@ begin
 					n => 16
 				)
 				port map(
-					x0r => ar(i+j*4),
-					x0i => ai(i+j*4),
+					clk => clk,
+					x0r => ar_sync(i+j*4),
+					x0i => ai_sync(i+j*4),
 					y0r => br(i+j*4),
 					y0i => bi(i+j*4)
 				);
 		end generate g_NEDA_block2;
 	end generate g_NEDA_block1;
 	
-	-- Radix-4 last stage
-	g_b_div: for i in 0 to 15 generate
-		br_shifted(i) <= resize(shift_right(br(i), 1), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
-		bi_shifted(i) <= resize(shift_right(bi(i), 1), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
-	end generate g_b_div;
+	-- Radix-4 last stage with D-latch
+	process (clk) is 
+	begin
+		if rising_edge(clk) then
+			for i in 0 to 15 loop
+				br_shifted(i) <= resize(shift_right(br(i), 1), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
+				bi_shifted(i) <= resize(shift_right(bi(i), 1), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
+			end loop;
+		end if;
+	end process;
 	
 	g_radix4_2: for i in 0 to 3 generate
 		u_radix4_2: radix4
 			port map(
+				clk => clk,
 				x0r => br_shifted(i*4),
 				x0i => bi_shifted(i*4),
 				x1r => br_shifted(i*4+1),
@@ -123,16 +143,33 @@ begin
 				d21 => '0');
 	end generate g_radix4_2;
 	
-	g_norm: for i in 0 to 8 generate
-		z_temp(i) <= shift_left(resize(yr(i)*yr(i) + yi(i)*yi(i), vecteurin'left, vecteurin'right, fixed_saturate, fixed_truncate), 2); -- TODO sqrt 
+	process (clk) is 
+	begin
+		if rising_edge(clk) then
+			yr_sync <= yr;
+			yi_sync <= yi;
+		end if;
+	end process;
+	
+	-- D-latch between abs computation
+	process (clk) is
+	begin
+		if rising_edge(clk) then
+			for i in tab9'range loop
+				yr_sqr(i) <= resize(yr_sync(i)*yr_sync(i), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
+				yi_sqr(i) <= resize(yi_sync(i)*yi_sync(i), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
+			end loop;
+		end if;
+	end process;
+	
+	g_norm: for i in tab9'range generate
+		z_temp(i) <= shift_left(resize(yr_sqr(i) + yi_sqr(i), vecteurin'left, vecteurin'right, fixed_saturate, fixed_truncate), 2);
 	end generate g_norm;
 	
 	-- Output register stage
-	process (clk, rst) is 
+	process (clk, rst) is
 	begin
-		if rst = '0' then
-			z <= (others => sfixed_zero);
-		elsif rising_edge(clk) then
+		if rising_edge(clk) then
 			z <= z_temp;
 		end if;
 	end process;
