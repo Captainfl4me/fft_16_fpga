@@ -38,21 +38,16 @@ architecture a1 of fft16 is
 	type t_radix_arr is array(0 to 3) of std_logic;
 	constant d20_last_stage: t_radix_arr := ('1', '0', '0', '0');
 	
-	signal z_temp, yr_sqr, yi_sqr : tab9;
-	signal x_div, x_reg, ar, ai, ar_sync, ai_sync, br, bi, br_shifted, bi_shifted, yr, yi, yr_sync, yi_sync : tab16;
-begin
-	-- Divide entry for Radix-4 first stage
-	g_x_div: for i in 0 to 15 generate
-		x_div(i) <= resize(shift_right(x(i), 2), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
-	end generate g_x_div;
-	
+	signal yr_sqr, yi_sqr : tab9;
+	signal x_reg, ar, ai, ar_sync, ai_sync, br, bi, br_latched, bi_latched, yr, yi, yr_sync, yi_sync : tab16;
+begin	
 	-- Input register stage
 	process (clk, rst) is 
 	begin
 		if rst = '0' then
 			x_reg <= (others => sfixed_zero);
 		elsif rising_edge(clk) and load_data = '1' then
-			x_reg <= x_div;
+			x_reg <= x;
 		end if;
 	end process;
 	
@@ -77,8 +72,8 @@ begin
 				y2i => ai(i+8),
 				y3r => ar(i+12),
 				y3i => ai(i+12),
-				d20 => '0',
-				d21 => '0');
+				d20 => '1',
+				d21 => '1');
 	end generate g_radix4_1;
 	
 	-- D-latch block
@@ -113,8 +108,8 @@ begin
 	begin
 		if rising_edge(clk) then
 			for i in 0 to 15 loop
-				br_shifted(i) <= resize(shift_right(br(i), 1), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
-				bi_shifted(i) <= resize(shift_right(bi(i), 1), vecteurin'left, vecteurin'right, fixed_wrap, fixed_truncate);
+				br_latched(i) <= br(i);
+				bi_latched(i) <= bi(i);
 			end loop;
 		end if;
 	end process;
@@ -123,14 +118,14 @@ begin
 		u_radix4_2: radix4
 			port map(
 				clk => clk,
-				x0r => br_shifted(i*4),
-				x0i => bi_shifted(i*4),
-				x1r => br_shifted(i*4+1),
-				x1i => bi_shifted(i*4+1),
-				x2r => br_shifted(i*4+2),
-				x2i => bi_shifted(i*4+2),
-				x3r => br_shifted(i*4+3),
-				x3i => bi_shifted(i*4+3),
+				x0r => br_latched(i*4),
+				x0i => bi_latched(i*4),
+				x1r => br_latched(i*4+1),
+				x1i => bi_latched(i*4+1),
+				x2r => br_latched(i*4+2),
+				x2i => bi_latched(i*4+2),
+				x3r => br_latched(i*4+3),
+				x3i => bi_latched(i*4+3),
 				y0r => yr(i),
 				y0i => yi(i),
 				y1r => yr(i+4),
@@ -162,15 +157,13 @@ begin
 		end if;
 	end process;
 	
-	g_norm: for i in tab9'range generate
-		z_temp(i) <= shift_left(resize(yr_sqr(i) + yi_sqr(i), vecteurin'left, vecteurin'right, fixed_saturate, fixed_truncate), 2);
-	end generate g_norm;
-	
 	-- Output register stage
-	process (clk, rst) is
+	process (clk) is
 	begin
 		if rising_edge(clk) then
-			z <= z_temp;
+			for i in tab9'range loop
+				z(i) <= resize(yr_sqr(i) + yi_sqr(i), vecteurin'left, vecteurin'right, fixed_saturate, fixed_truncate);
+			end loop;
 		end if;
 	end process;
 end a1;

@@ -38,6 +38,7 @@ COMPONENT fft16 IS
     GENERIC( nbit : integer :=12 );
     PORT(clk : in std_logic;
 			rst : in std_logic;
+			load_data: in std_logic;
 			x : in tab16 ;
 		   z : out tab9);
 END COMPONENT fft16;
@@ -48,8 +49,9 @@ signal z : tab9;
 begin
 
   -- instantiation du systeme a tester  
-  UUT : fft16  port map(clk2, raz, x,z);    
+  UUT : fft16  port map(clk2, raz, enable, x,z);    
 
+  enable <= '1';
   raz <= '1';
   clk2 <= not clk2 after 100 ns; 
 

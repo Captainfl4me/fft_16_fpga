@@ -30,7 +30,7 @@ architecture a1 of radix4 is
 begin
 	URAD2_1r: radix2
 		port map(
-			d2 => '0',
+			d2 => '1',
 			x0 => x0r,
 			x1 => x2r,
 			yp => b0r,
@@ -38,7 +38,7 @@ begin
 		);		
 	URAD2_1i: radix2
 		port map(
-			d2 => '0',
+			d2 => '1',
 			x0 => x0i,
 			x1 => x2i,
 			yp => b0i,
@@ -47,7 +47,7 @@ begin
 		
 	URAD2_2r: radix2
 		port map(
-			d2 => '0',
+			d2 => '1',
 			x0 => x1r,
 			x1 => x3r,
 			yp => b2r,
@@ -55,7 +55,7 @@ begin
 		);
 	URAD2_2i: radix2
 		port map(
-			d2 => '0',
+			d2 => '1',
 			x0 => x1i,
 			x1 => x3i,
 			yp => b2i,
